@@ -13,10 +13,8 @@ namespace HideVolumeOSD
             checkBoxSystemTrayVolume.Checked = Settings.Default.VolumeInSystemTray;
             trackBarDelay.Value = Settings.Default.VolumeHideDelay;
             SetChecked(Settings.Default.VolumeDisplaySize);
-            checkBoxClockPos.Checked = Settings.Default.VolumeDisplayNearClock;
             radioButtonLight.Checked = Settings.Default.VolumeDisplayLight;
             radioButtonDark.Checked = !Settings.Default.VolumeDisplayLight;
-            textBoxOffset.Text = Settings.Default.VolumeDisplayOffset.ToString();
         }
 
         protected override void OnVisibleChanged(EventArgs e)
@@ -126,11 +124,6 @@ namespace HideVolumeOSD
             }
         }
 
-        private void checkBoxClockPos_CheckedChanged(object sender, EventArgs e)
-        {
-            Settings.Default.VolumeDisplayNearClock = checkBoxClockPos.Checked;
-        }
-
         private void radioButtonLight_CheckedChanged(object sender, EventArgs e)
         {
             Settings.Default.VolumeDisplayLight = radioButtonLight.Checked;
@@ -139,19 +132,6 @@ namespace HideVolumeOSD
         private void radioButtonDark_CheckedChanged(object sender, EventArgs e)
         {
             Settings.Default.VolumeDisplayLight = radioButtonLight.Checked;
-        }
-
-        private void textBoxOffset_TextChanged(object sender, EventArgs e)
-        {
-            Settings.Default.VolumeDisplayOffset = int.Parse(textBoxOffset.Text);
-        }
-
-        private void textBoxOffset_KeyPress(object sender, KeyPressEventArgs e)
-        {
-            if (!char.IsControl(e.KeyChar) && !char.IsDigit(e.KeyChar))
-            {
-                e.Handled = true;
-            }
         }
     }
 }

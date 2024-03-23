@@ -5,6 +5,8 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Drawing;
 using System.Windows.Forms;
+using System.Diagnostics;
+using System.ComponentModel;
 
 namespace HideVolumeOSD
 {
@@ -63,7 +65,7 @@ namespace HideVolumeOSD
 			public int bottom;
 		}
 
-		[DllImport("Shell32.dll", SetLastError = true)]
+        [DllImport("Shell32.dll", SetLastError = true)]
 		private static extern Int32 Shell_NotifyIconGetRect([In] ref NOTIFYICONIDENTIFIER identifier, [Out] out RECT iconLocation);
 
 		NotifyIcon notifyIcon;
@@ -82,8 +84,47 @@ namespace HideVolumeOSD
 				this.notifyIcon = ni;
 			}
 		}
+        public static Rectangle GetTaskbarPosition()
+        {
+            var data = new APPBARDATA();
+            data.cbSize = System.Runtime.InteropServices.Marshal.SizeOf(data);
+            IntPtr retval = SHAppBarMessage(ABM_GETTASKBARPOS, ref data);
+            if (retval == IntPtr.Zero) throw new Win32Exception("Please re-install Windows");
+            return new Rectangle(data.rc.left, data.rc.top,
+                data.rc.right - data.rc.left, data.rc.bottom - data.rc.top);
 
-		public void Init()
+        }
+        private const int ABM_GETTASKBARPOS = 5;
+        [System.Runtime.InteropServices.DllImport("shell32.dll")]
+        private static extern IntPtr SHAppBarMessage(int msg, ref APPBARDATA data);
+        private struct APPBARDATA
+        {
+            public int cbSize;
+            public IntPtr hWnd;
+            public int uCallbackMessage;
+            public int uEdge;
+            public RECT rc;
+            public IntPtr lParam;
+        }
+
+        public const int TaskbarWidthCheckTrigger = 250;
+
+        static public AnchorStyles GetTaskbarAnchorStyle()
+        {
+            var coordonates = GetTaskbarPosition();
+            if (coordonates.Left == 0 && coordonates.Top == 0)
+                if (coordonates.Width > TaskbarWidthCheckTrigger)
+                    return AnchorStyles.Top;
+                else
+                    return AnchorStyles.Left;
+            else
+            if (coordonates.Width > TaskbarWidthCheckTrigger)
+                return AnchorStyles.Bottom;
+            else
+                return AnchorStyles.Right;
+        }
+
+        public void Init()
 		{
 			hWndInject = FindOSDWindow(true);
 
@@ -317,38 +358,30 @@ namespace HideVolumeOSD
 			}
 		}
 
-		public void showVolumeWindow(bool bShow)
+        public void showVolumeWindow(bool bShow)
         {
 			if (bShow)
             {
 				RECT rect = new RECT();
 
-				bool bOverIcon = false;
+				RECT rcDesktop = new RECT();
+				SystemParametersInfo(SPI_GETWORKAREA, IntPtr.Zero, out rcDesktop, IntPtr.Zero);
 
-				if (Shell_NotifyIconGetRect(ref notifyIconIdentifier, out rect) != 0 || Settings.Default.VolumeDisplayNearClock)
-				{
-					RECT rcDesktop = new RECT();
-					SystemParametersInfo(SPI_GETWORKAREA, IntPtr.Zero, out rcDesktop, IntPtr.Zero);
+				int cx = GetSystemMetrics(SM_CXSCREEN);
+				int cy = GetSystemMetrics(SM_CYSCREEN);
 
-					int cx = GetSystemMetrics(SM_CXSCREEN);
-					int cy = GetSystemMetrics(SM_CYSCREEN);
+				int taskBarHeight = cy - rcDesktop.bottom;
 
-					int taskBarHeight = cy - rcDesktop.bottom;
+				rect.left = (int)(cx - taskBarHeight * 1.8);
+				rect.right = cx;
 
-					rect.left = (int)(cx - taskBarHeight * 1.8);
-					rect.right = cx;
+				rect.top = rcDesktop.bottom;
+				rect.bottom = cy;
 
-					rect.top = rcDesktop.bottom;
-					rect.bottom = cy;
-				}
-				else
-                {
-					bOverIcon = true;
-                }
 
-				int height = rect.bottom - rect.top;
+                int height = 60;
 
-				switch (Settings.Default.VolumeDisplaySize)
+                switch (Settings.Default.VolumeDisplaySize)
 				{
 					case 0:
 
@@ -366,15 +399,30 @@ namespace HideVolumeOSD
 						break;
 				}
 
-				int width = (int)(height * 1.8);
+                int width = (int)(height * 1.8);
 
-				volumePopup.Show();
+                volumePopup.Show();
 				volumePopup.Size = new Size(width, height);
 
-				if (bOverIcon)
-					volumePopup.Location = new Point(rect.left + (rect.right - rect.left) / 2 - width / 2, rect.top + (rect.bottom - rect.top) / 2 - height / 2);
-				else
-					volumePopup.Location = new Point(rect.right - width - Settings.Default.VolumeDisplayOffset, rect.top + (rect.bottom - rect.top) / 2 - height / 2);
+                var anchor = GetTaskbarAnchorStyle();
+                var area = SystemInformation.WorkingArea;
+				var padding = 10;
+
+                switch (anchor)
+                {
+                    case AnchorStyles.Top:
+                        volumePopup.Location = new Point(area.Left + area.Width - width - padding, area.Top + padding);
+                        break;
+                    case AnchorStyles.Bottom:
+                        volumePopup.Location = new Point(area.Left + area.Width - width - padding, area.Top + area.Height - height - padding);
+                        break;
+                    case AnchorStyles.Left:
+                        volumePopup.Location = new Point(area.Left + padding, area.Top + padding);
+                        break;
+                    case AnchorStyles.Right:
+                        volumePopup.Location = new Point(area.Left + area.Width - width - padding, area.Top + padding);
+                        break;
+                }
 			}
 			else
             {
